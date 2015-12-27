@@ -1,7 +1,7 @@
 --Thanks to Southbird for his SMB3 disassembly and replying to my questions
 --I rewrote this script due to my hard drive being wiped, oops. ;P
 
---toggle features, change to false if you dont' want them
+--toggle features, change to false if you don't want them
 local toggle_corner_boost               = true
 local toggle_display_hitboxes           = true
 local toggle_display_sprite_information = true
