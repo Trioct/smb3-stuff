@@ -194,8 +194,8 @@ function display_information()
     if toggle_display_mario_position then
         local mario_sub_x = memory.readbyte(ram_low_x)
         local mario_sub_y = memory.readbyte(ram_low_y)
-        gui.drawtext(1, y_counter, string.format("%s%d%s%s%X%s%d%s%s%X%s", "Pos: (", memory.readbyte(ram_x), ".", (mario_sub_x == 0 and "0" or ""), mario_sub_x, ", ", 
-                                                                                     memory.readbyte(ram_y), ".", (mario_sub_y == 0 and "0" or ""), mario_sub_y, ")"), text_color, text_back_color)
+        gui.drawtext(1, y_counter, string.format("%s%d%s%s%X%s%d%s%s%X%s", "Pos: (", memory.readbyte      (ram_x), ".", (mario_sub_x == 0 and "0" or ""), mario_sub_x, ", ", 
+                                                                                     memory.readbytesigned(ram_y), ".", (mario_sub_y == 0 and "0" or ""), mario_sub_y, ")"), text_color, text_back_color)
         y_counter = y_counter + 8
     end
     
