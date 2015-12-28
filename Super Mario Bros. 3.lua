@@ -6,12 +6,12 @@ local toggle_corner_boost               = true
 local toggle_display_hitboxes           = true
 local toggle_display_sprite_information = true
 local toggle_display_time               = true
-local toggle_display_rng                = true    
+local toggle_display_rng                = true
+local toggle_display_8_frame_timer      = true
 local toggle_display_mario_position     = true
 local toggle_display_mario_velocity     = true
 local toggle_display_next_p             = true
 local toggle_display_p_kill_counter     = true
-local toggle_display_8_frame_timer      = true
 
 --variables
 local nes_framerate   = 60.0988138974405
@@ -30,12 +30,11 @@ local ram_low_y           = 0x075F
 local ram_relative_y      = 0x00B4
 local ram_y_speed         = 0x00CF
 local ram_sprites_id      = 0x0670
-local ram_mario_id        = 0x00EE
 local ram_sprite_state    = 0x0660
 local ram_rng             = 0x0781
+local ram_8_frame_timer   = 0x055D
 local ram_next_p          = 0x0515
 local ram_p_kill_counter  = 0x056E
-local ram_8_frame_timer   = 0x055D
 
 local rom_sprite_attributes = 0x0304
 local rom_sprite_hitboxes   = 0x02C4
@@ -171,19 +170,24 @@ end
 
 function display_information()
 
-    --display rng
+    local y_counter = 9
     if toggle_display_rng then
         local rng = memory.readbyte(ram_rng)
-        gui.drawtext(211, 9, string.format("RNG: " .. (rng < 100 and (rng < 10 and "00" or "0") or "")) .. rng, text_color, text_back_color)
+        gui.drawtext(211, y_counter, string.format("RNG: " .. (rng < 100 and (rng < 10 and "00" or "0") or "")) .. rng, text_color, text_back_color)
+		y_counter = y_counter + 8
     end
     
+    if toggle_display_8_frame_timer then
+        gui.drawtext(202, y_counter, string.format("8 Frame: " .. memory.readbyte(ram_8_frame_timer)), text_color, text_back_color)
+    end
+	
     --display mario information
-    if not (toggle_display_mario_position or toggle_display_mario_velocity or toggle_display_next_p or toggle_display_p_kill_counter or toggle_display_8_frame_timer) then
+    if not (toggle_display_mario_position or toggle_display_mario_velocity or toggle_display_next_p or toggle_display_p_kill_counter) then
         return
     end
     
-    local y_counter = 96
-    
+	y_counter = 96
+	
     gui.drawtext(1, y_counter, "Mario:", text_color, text_back_color)
     y_counter = y_counter + 8
     
@@ -207,11 +211,6 @@ function display_information()
     
     if toggle_display_p_kill_counter then
         gui.drawtext(1, y_counter, string.format("P Kill Counter: " .. memory.readbyte(ram_p_kill_counter)), text_color, text_back_color)
-        y_counter = y_counter + 8
-    end
-    
-    if toggle_display_8_frame_timer then
-        gui.drawtext(1, y_counter, string.format("8 Frame Timer: " .. memory.readbyte(ram_8_frame_timer)), text_color, text_back_color)
         y_counter = y_counter + 8
     end
 end
