@@ -92,7 +92,7 @@ function display_hitboxes()
     
     local sprites = {}
     for i=1, sprite_slots, 1 do
-        sprites[i]       = {}
+        sprites[i]    = {}
         sprites[i][0] = memory.readbyte(ram_sprites_id + i)   --get sprite id
         sprites[i][1] = memory.readbyte(ram_relative_x + i)   --get sprite relative x
         sprites[i][2] = memory.readbyte(ram_relative_y + i)   --get sprite relative y
