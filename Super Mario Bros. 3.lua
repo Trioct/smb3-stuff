@@ -40,29 +40,33 @@ local level_horizontal_draw_y  = 196 --y position of drawn level on screen when 
 local level_vertical_draw_x    = 238 --x position of drawn level on screen when level is vertical
 
 --all of the ram addresses I need, sorry for the garbage (and sometimes inaccurate) names
-local ram_mario_suit      = 0x00ED --mario powerup (0 = small, 1 = big, ...)
-local ram_is_crouching    = 0x056F --set if mario is crouching
-local ram_high_x          = 0x0075 --high byte of mario's x position, when mario's x goes above 0xff, this increases by one
-local ram_x               = 0x0090 --mario's x
-local ram_low_x           = 0x074D --mario's subpixel x (16 subpixels in a pixel)
-local ram_relative_x      = 0x00AB --mario's x position on the screen
-local ram_x_speed         = 0x00BD --mario's x speed
-local ram_high_y          = 0x0087 --high byte of mario's y position, when mario's y goes above 0xff, this increases by one
-local ram_y               = 0x00A2 --mario's y
-local ram_low_y           = 0x075F --mario's subpixel y (16 subpixels in a pixel)
-local ram_relative_y      = 0x00B4 --mario's y position on the screen
-local ram_y_speed         = 0x00CF --mario's y speed
-local ram_sprite_id       = 0x0670 --list of the id's of currently loaded, or once loaded sprites
-local ram_sprite_state    = 0x0660 --the states of those sprites (0 = dead)
-local ram_rng             = 0x0781 --Random Number Generator
-local ram_8_frame_timer   = 0x055D --8 frame timer, 0-7
-local ram_next_p          = 0x0515 --countdown timer until the next p arrow fills up
-local ram_p_kill_counter  = 0x056E --countdown timer until p speed expires
-local ram_level_data      = 0x6000 --the level stored as tiles
-local ram_level_size      = 0x0022 --stores the size of the level in screens
-local ram_tile_attr_table = 0x7E94 --stores 8 bytes which determine whether a tile is solid
-local ram_tileset         = 0x070A --which tileset the game is using (0 = level)
-local ram_stack           = 0x0100 --the stack, stores whether the level is horizontal or vertical, oddly enough
+local ram_mario_suit       = 0x00ED --mario powerup (0 = small, 1 = big, ...)
+local ram_is_crouching     = 0x056F --set if mario is crouching
+local ram_high_x           = 0x0075 --high byte of mario's x position, when mario's x goes above 0xff, this increases by one
+local ram_x                = 0x0090 --mario's x
+local ram_low_x            = 0x074D --mario's subpixel x (16 subpixels in a pixel)
+local ram_relative_x       = 0x00AB --mario's x position on the screen
+local ram_x_speed          = 0x00BD --mario's x speed
+local ram_high_y           = 0x0087 --high byte of mario's y position, when mario's y goes above 0xff, this increases by one
+local ram_y                = 0x00A2 --mario's y
+local ram_low_y            = 0x075F --mario's subpixel y (16 subpixels in a pixel)
+local ram_relative_y       = 0x00B4 --mario's y position on the screen
+local ram_y_speed          = 0x00CF --mario's y speed
+local ram_sprite_id        = 0x0670 --list of the id's of currently loaded, or once loaded sprites
+local ram_sprite_state     = 0x0660 --the states of those sprites (0 = dead)
+local ram_rng              = 0x0781 --Random Number Generator
+local ram_8_frame_timer    = 0x055D --8 frame timer, 0-7
+local ram_next_p           = 0x0515 --countdown timer until the next p arrow fills up
+local ram_p_kill_counter   = 0x056E --countdown timer until p speed expires
+local ram_level_data       = 0x6000 --the level stored as tiles
+local ram_level_size       = 0x0022 --stores the size of the level in screens
+local ram_tile_attr_table  = 0x7E94 --stores 8 bytes which determine whether a tile is solid
+local ram_tileset          = 0x070A --which tileset the game is using (0 = level)
+local ram_stack            = 0x0100 --the stack, stores whether the level is horizontal or vertical, oddly enough
+local ram_high_horz_scroll = 0x0012 --the screen's high x value
+local ram_horz_scroll      = 0x00FD --the screen's x value
+local ram_high_vert_scroll = 0x0014 --the screen's high y value
+local ram_vert_scroll      = 0x00FC --the screen's y value
 
 --all of the rom addresses I need
 local rom_sprite_attributes = 0x0304 --table containing sprite information
@@ -111,7 +115,7 @@ end
 
 --the exact x position of mario, down to the sub pixel
 function x_total()
-    return (memory.readbyte(ram_high_x) * 65536) + (memory.readbyte(ram_x) * 256) + memory.readbyte(ram_low_x)
+    return (memory.readbyte(ram_high_x) * 0x10000) + (memory.readbyte(ram_x) * 0x100) + memory.readbyte(ram_low_x)
 end
 
 --grab some position and speed values before the next frame
@@ -125,12 +129,22 @@ function preframe_calculations()
     pre_pixel_boost()
 end
 
+function get_screen_information()
+    screen[0] = (memory.readbyte(ram_high_horz_scroll) * 0x100) + memory.readbyte(ram_horz_scroll)                           --left side
+    screen[1] = (memory.readbyte(ram_high_horz_scroll) * 0x100) + (screen_width  * 0x100) + memory.readbyte(ram_horz_scroll)  --right side
+    screen[2] = (memory.readbyte(ram_high_vert_scroll) * 0x100) + memory.readbyte(ram_vert_scroll)                           --top
+    screen[3] = (memory.readbyte(ram_high_vert_scroll) * 0x100) + (screen_height * 0x100) + memory.readbyte(ram_vert_scroll)  --bottom
+end
+
 function get_sprite_information()
     for i=1, sprite_slots, 1 do
         sprite[i]       = {} --let each sprite hold many variables
         sprite[i][0]    = memory.readbyte(ram_sprite_id + i)    --get sprite id
-        sprite[i][1]    = memory.readbyte(ram_relative_x + i)   --get sprite relative x
-        sprite[i][2]    = memory.readbyte(ram_relative_y + i)   --get sprite relative y
+        --sprite[i][1]    = memory.readbyte(ram_relative_x + i)   --get sprite relative x
+        --sprite[i][2]    = memory.readbyte(ram_relative_y + i)   --get sprite relative y
+        --I've opted to calculate relative x and y for "reasons"
+        sprite[i][1]    = ((memory.readbytesigned(ram_high_x+i) * 0x100) + memory.readbyte(ram_x+i)) - screen[0]
+        sprite[i][2]    = ((memory.readbytesigned(ram_high_y+i) * 0x100) + memory.readbyte(ram_y+i)) - screen[2]
         sprite[i][3]    = memory.readbyte(ram_sprite_state + i) --get sprite state (alive, dead, etc.)
         sprite[i][4]    = memory.readbyte(ram_x + i)            --get x
         sprite[i][5]    = memory.readbyte(ram_y + i)            --get y
@@ -145,34 +159,10 @@ function get_sprite_information()
     end
 end
 
-function get_screen_information()
-    --didn't bother to search for the screen's position in ram
-    screen[0]    = ((memory.readbytesigned(ram_high_x) * 256) + memory.readbyte(ram_x)) -  memory.readbyte(ram_relative_x)          --left side  (pair 0)
-    screen[1]    = ((memory.readbytesigned(ram_high_x) * 256) + memory.readbyte(ram_x)) - (memory.readbyte(ram_relative_x) - 0xff)  --right side (pair 0)
-    screen[2]    = ((memory.readbytesigned(ram_high_y) * 256) + memory.readbyte(ram_y)) -  memory.readbyte(ram_relative_y)          --top        (pair 1)
-    screen[3]    = ((memory.readbytesigned(ram_high_y) * 256) + memory.readbyte(ram_y)) - (memory.readbyte(ram_relative_y) - 0xff)  --bottom     (pair 1)
-    
-    --find screen if mario is off-screen. Very hacky solution, don't try to analyze this garbage, please.
-    for i=0, 3, 1 do
-        local loops = 0 --used for odd math issues, unsure of the cause, just going to use a hacky solution, works fine
-        while screen[i] < 0 do --loop through the screen sides
-            screen[i] = 0xff + screen[i] + (loops > 0 and 1 or 0) --add 0xff to get back to the screen, disguisting solution, I'm so sorry ;P
-            local pair = (i % 2) --getting which partner screen[i] is in its pair
-            if pair == 0 then --if zero, it's the first partner (0 or 2) (left or right)
-                pair = 1
-            else --else it's the second partner (1, 3) (top or bottom)
-                pair = -1
-            end
-            screen[i + pair] = screen[i + pair] + 0xff + (loops > 0 and 1 or 0) --add 0xff to the other partner as well (horizontal or vertical partner)
-            loops = loops + 1
-        end
-    end
-end
-
 function display_hitboxes()
     for i=1, sprite_slots, 1 do
-        local sprite_x = (memory.readbyte(ram_high_x + i) * 256) + sprite[i][4] --get specific sprite x (without sub pixel)
-        local sprite_y = (memory.readbyte(ram_high_y + i) * 256) + sprite[i][5] --get specific sprite y
+        local sprite_x = (memory.readbyte(ram_high_x + i) * 0x100) + sprite[i][4] --get specific sprite x (without sub pixel)
+        local sprite_y = (memory.readbyte(ram_high_y + i) * 0x100) + sprite[i][5] --get specific sprite y
         
         if (sprite[i][3] ~= 0) and --if alive
           ((sprite_x - 1 > screen[0]) and (sprite_x + 1 < screen[1]) and (sprite_y - 1 > screen[2]) and (sprite_y + 1 < screen[3])) then --check if within screen, I add or subtract one to be sure
@@ -185,8 +175,8 @@ end
 function display_sprite_id_above_sprite()
     if toggle_display_sprite_id_above_sprite then
         for i=1, sprite_slots, 1 do
-        local sprite_x = (memory.readbyte(ram_high_x + i) * 256) + sprite[i][4] --get specific sprite x (without sub pixel)
-        local sprite_y = (memory.readbyte(ram_high_y + i) * 256) + sprite[i][5] --get specific sprite y
+        local sprite_x = (memory.readbyte(ram_high_x + i) * 0x100) + sprite[i][4] --get specific sprite x (without sub pixel)
+        local sprite_y = (memory.readbyte(ram_high_y + i) * 0x100) + sprite[i][5] --get specific sprite y
         
             if (sprite[i][3] ~= 0) and --if alive
               ((sprite_x - 1 > screen[0]) and (sprite_x + 1 < screen[1]) and (sprite_y - 1 > screen[2]) and (sprite_y + 1 < screen[3])) then --check if within screen, I add or subtract one to be sure
@@ -213,8 +203,8 @@ function post_pixel_boost()
     local x_expected = x_total() --expected x
     local x_actual = x_prev + (x_speed_prev * 16) --actual x
     local x_difference = x_expected - x_actual --difference
-    pixel_boost_total = pixel_boost_total + (x_difference == 256 and 1 or 0) --if the difference was exactly one, it was a pixel boost
-    pixel_boost_negative_total = pixel_boost_negative_total + (x_difference == -256 and 1 or 0) --or a negative boost (wall pushing back, etc.)
+    pixel_boost_total = pixel_boost_total + (x_difference == 0x100 and 1 or 0) --if the difference was exactly one, it was a pixel boost
+    pixel_boost_negative_total = pixel_boost_negative_total + (x_difference == -0x100 and 1 or 0) --or a negative boost (wall pushing back, etc.)
     gui.drawtext(1, 9, "Pixel Boost Pos: " .. pixel_boost_total .. "; Neg: " .. pixel_boost_negative_total, text_color, text_back_color) --draw text
 end
 
@@ -315,8 +305,8 @@ function draw_level()
                     
                     for y=0, display_height-1, 1 do
                         for x=0, display_width-1, 1 do
-                            gui.drawpixel(x_offset + (memory.readbyte(ram_high_x + i) * 16) + math.floor((sprite[i][4] + sprite[i][9][0] + 2) / 16) + x, 
-                                          y_offset + (memory.readbyte(ram_high_y + i) * 16) + math.floor((sprite[i][5] + sprite[i][9][1] + 2) / 16) + y, "purple") --draw the sprite pixels
+                            gui.drawpixel(x_offset + (memory.readbyte(ram_high_x + i) * 16) + math.floor((sprite[i][4] + sprite[i][9][0] + 6) / 16) + x, 
+                                          y_offset + (memory.readbyte(ram_high_y + i) * 16) + math.floor((sprite[i][5] + sprite[i][9][1] + 6) / 16) + y, "purple") --draw the sprite pixels
                         end
                     end
                 end
@@ -375,8 +365,10 @@ function display_information()
     y_counter = 169
     
     if toggle_display_rerecords then
-        gui.drawtext(1, y_counter, string.format("%d", movie.rerecordcount()), text_color, text_back_color)
-        y_counter = y_counter + 8
+        if movie.active() then
+            gui.drawtext(1, y_counter, string.format("%d", movie.rerecordcount()), text_color, text_back_color)
+            y_counter = y_counter + 8
+        end
     end
     
     if toggle_display_lag_frames then
@@ -398,11 +390,8 @@ end
 --do postframe calculations
 function postframe_calculations()
     if (toggle_display_hitboxes) or (toggle_display_sprite_information) or (toggle_display_sprites_in_level) or (toggle_display_sprite_id_above_sprite) then
-        get_sprite_information()
-    end
-    
-    if (toggle_display_hitboxes) or (toggle_display_sprite_id_above_sprite) then
         get_screen_information()
+        get_sprite_information()
     end
     
     if toggle_display_hitboxes then
