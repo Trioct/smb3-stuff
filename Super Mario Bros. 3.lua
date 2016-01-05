@@ -13,6 +13,7 @@ local toggle_display_rng                            = true
 local toggle_display_8_frame_timer                  = true
 local toggle_display_mario_position                 = true
 local toggle_display_mario_velocity                 = true
+local toggle_display_p_meter                        = true
 local toggle_display_next_p                         = true
 local toggle_display_p_kill_counter                 = true
 local toggle_display_block_y                        = true --for walljumps
@@ -20,6 +21,7 @@ local toggle_display_rerecords                      = true
 local toggle_display_lag_frames                     = true
 local toggle_display_frames                         = true
 local toggle_display_level                          = true
+local toggle_display_screen_in_level                = true
 local toggle_display_mario_in_level                 = true
 local toggle_display_sprites_in_level               = true
 local toggle_display_level_toggleable               = true --able to toggle level with key in get_input
@@ -28,12 +30,16 @@ local toggle_display_level_on_overworld             = false
 
 --variables
 local text_color               = "#009900ff"
+local text_faded_color         = "#003300ff"
 local text_back_color          = "black"
 local hitbox_edge_color        = "red"
 local hitbox_back_color        = nil --default
 local sprite_id_text_color     = "white"
 local sprite_id_back_color     = "#00000066"
 local level_block_color        = "#009900ff"
+local level_block_faded_color  = "#003300ff"
+local level_sprite_color       = "#990099ff"
+local level_sprite_faded_color = "#330033ff"
 local level_mario_color        = "red"
 local level_back_color         = "black"
 local level_horizontal_draw_y  = 196 --y position of drawn level on screen when level is horizontal
@@ -56,16 +62,17 @@ local ram_sprite_id        = 0x0670 --list of the id's of currently loaded, or o
 local ram_sprite_state     = 0x0660 --the states of those sprites (0 = dead)
 local ram_rng              = 0x0781 --Random Number Generator
 local ram_8_frame_timer    = 0x055D --8 frame timer, 0-7
+local ram_p_meter          = 0x03DD --P meter
 local ram_next_p           = 0x0515 --countdown timer until the next p arrow fills up
 local ram_p_kill_counter   = 0x056E --countdown timer until p speed expires
+local ram_stack            = 0x0100 --the stack, stores whether the level is horizontal or vertical, oddly enough
 local ram_level_data       = 0x6000 --the level stored as tiles
 local ram_level_size       = 0x0022 --stores the size of the level in screens
 local ram_tile_attr_table  = 0x7E94 --stores 8 bytes which determine whether a tile is solid
 local ram_tileset          = 0x070A --which tileset the game is using (0 = level)
-local ram_stack            = 0x0100 --the stack, stores whether the level is horizontal or vertical, oddly enough
 local ram_high_horz_scroll = 0x0012 --the screen's high x value
 local ram_horz_scroll      = 0x00FD --the screen's x value
-local ram_high_vert_scroll = 0x0014 --the screen's high y value
+local ram_high_vert_scroll = 0x0013 --the screen's high y value
 local ram_vert_scroll      = 0x00FC --the screen's y value
 
 --all of the rom addresses I need
@@ -130,10 +137,10 @@ function preframe_calculations()
 end
 
 function get_screen_information()
-    screen[0] = (memory.readbyte(ram_high_horz_scroll) * 0x100) + memory.readbyte(ram_horz_scroll)                           --left side
-    screen[1] = (memory.readbyte(ram_high_horz_scroll) * 0x100) + (screen_width  * 0x100) + memory.readbyte(ram_horz_scroll)  --right side
-    screen[2] = (memory.readbyte(ram_high_vert_scroll) * 0x100) + memory.readbyte(ram_vert_scroll)                           --top
-    screen[3] = (memory.readbyte(ram_high_vert_scroll) * 0x100) + (screen_height * 0x100) + memory.readbyte(ram_vert_scroll)  --bottom
+    screen[0] = (memory.readbyte(ram_high_horz_scroll) * (screen_width  * 0x10)) + memory.readbyte(ram_horz_scroll)                          --left side
+    screen[1] = (memory.readbyte(ram_high_horz_scroll) * (screen_width  * 0x10)) + (screen_width  * 0x10) + memory.readbyte(ram_horz_scroll) --right side
+    screen[2] = (memory.readbyte(ram_high_vert_scroll) * (screen_height * 0x10)) + memory.readbyte(ram_vert_scroll)                          --top
+    screen[3] = (memory.readbyte(ram_high_vert_scroll) * (screen_height * 0x10)) + (screen_height * 0x10) + memory.readbyte(ram_vert_scroll) --bottom
 end
 
 function get_sprite_information()
@@ -263,6 +270,8 @@ function draw_level()
             y_offset     = level_horizontal_draw_y --constant y offset
         end
         
+        local block_color = level_block_color
+        
         gui.drawrect(x_offset, y_offset, x_offset + level_width, y_offset + level_height, level_back_color, level_back_color) --background rectangle
         for y=0, level_height, 1 do
             for x=0, level_width, 1 do
@@ -274,8 +283,41 @@ function draw_level()
                                                                                                                                                     --more complicated due to how the level is stored in ram
                 end
                 local quadrant = math.floor(block / 0x40) --used for checking solidity
-                if block >= tile_attributes[quadrant] and block < (quadrant+1) * 0x40 then --check soliditiy within quadrant
-                    gui.drawpixel(x_offset + x, y_offset + y, level_block_color) --draw the block
+                if (block >= tile_attributes[quadrant]) and (block < (quadrant+1) * 0x40) then --check soliditiy within quadran
+                    if toggle_display_screen_in_level then
+                        if ((x * 16 >= screen[0]) and (x * 16 <= screen[1])) and ((y * 16 >= screen[2]) and (y * 16 <= screen[3])) then
+                            block_color = level_block_color
+                        else
+                            block_color = level_block_faded_color
+                        end
+                    end
+                    gui.drawpixel(x_offset + x, y_offset + y, block_color) --draw the block
+                end
+            end
+        end
+        
+        local sprite_color = level_sprite_color
+        
+        if toggle_display_sprites_in_level then
+            for i=1, sprite_slots, 1 do
+                if sprite[i][3] ~= 0 then --if alive
+                    local display_width  = math.ceil((sprite[i][9][2] - sprite[i][9][0]) / 16) --width of hitbox rounded up
+                    local display_height = math.ceil((sprite[i][9][3] - sprite[i][9][1]) / 16) --height of the hitbox rounded up
+                    
+                    for y=0, display_height-1, 1 do
+                        for x=0, display_width-1, 1 do
+                            local sprite_x = (memory.readbyte(ram_high_x + i) * 16) + math.floor((sprite[i][4] + sprite[i][9][0] + 6) / 16) + x
+                            local sprite_y = (memory.readbyte(ram_high_y + i) * 16) + math.floor((sprite[i][5] + sprite[i][9][1] + 6) / 16) + y
+                            if toggle_display_screen_in_level then
+                                if ((sprite_x * 16 >= screen[0]) and (sprite_x * 16 <= screen[1])) and ((sprite_y * 16 >= screen[2]) and (sprite_y * 16 <= screen[3])) then
+                                    sprite_color = level_sprite_color
+                                else
+                                    sprite_color = level_sprite_faded_color
+                                end
+                            end
+                            gui.drawpixel(x_offset + sprite_x, y_offset + sprite_y, sprite_color) --draw the sprite pixels
+                        end
+                    end
                 end
             end
         end
@@ -297,21 +339,6 @@ function draw_level()
             end
         end
         
-        if toggle_display_sprites_in_level then
-            for i=1, sprite_slots, 1 do
-                if sprite[i][3] ~= 0 then --if alive
-                    local display_width  = math.ceil((sprite[i][9][2] - sprite[i][9][0]) / 16) --width of hitbox rounded up
-                    local display_height = math.ceil((sprite[i][9][3] - sprite[i][9][1]) / 16) --height of the hitbox rounded up
-                    
-                    for y=0, display_height-1, 1 do
-                        for x=0, display_width-1, 1 do
-                            gui.drawpixel(x_offset + (memory.readbyte(ram_high_x + i) * 16) + math.floor((sprite[i][4] + sprite[i][9][0] + 6) / 16) + x, 
-                                          y_offset + (memory.readbyte(ram_high_y + i) * 16) + math.floor((sprite[i][5] + sprite[i][9][1] + 6) / 16) + y, "purple") --draw the sprite pixels
-                        end
-                    end
-                end
-            end
-        end
     end
 end
 
@@ -345,6 +372,26 @@ function display_information()
     
     if toggle_display_mario_velocity then
         gui.drawtext(1, y_counter, string.format("Speed: (%d, %d)", memory.readbytesigned(ram_x_speed), memory.readbytesigned(ram_y_speed)), text_color, text_back_color)
+        y_counter = y_counter + 8
+    end
+    
+    if toggle_display_p_meter then
+        gui.drawtext(1, y_counter, "P Meter:", text_color, text_back_color)
+        gui.drawtext(40, y_counter, " >>>>>>P", text_faded_color, text_back_color)
+        local p_meter_bits = memory.readbyte(ram_p_meter)
+        local p_meter = 0
+        for i=0, 6, 1 do
+            if AND(p_meter_bits, math.pow(2, i)) ~= 0 then
+                p_meter = p_meter + 1
+            end
+        end
+        
+        for i=0, p_meter-1, 1 do
+            gui.drawtext(46 + i * 4, y_counter, ">", text_color, "clear")
+        end
+        if p_meter == 7 then
+            gui.drawtext(70, y_counter, "P", text_color, text_back_color)
+        end
         y_counter = y_counter + 8
     end
     
