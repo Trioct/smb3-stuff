@@ -1,15 +1,17 @@
---Thanks to Southbird for his SMB3 disassembly and replying to my questions
---I rewrote this script due to my hard drive being wiped, oops. ;P
+--Thanks to Southbird for his SMB3 disassembly and replying to my questions, sorry for bugging you. :P
+--I rewrote this script due to wiping my hard drive.
 --TODO optimize everything, make prettier, better explanations
 
 --toggle features, change to false if you don't want them
 local toggle_display_pixel_boost                    = true
-local toggle_display_hitboxes                       = true
+local toggle_display_sprite_hitboxes                = true
+local toggle_display_mario_hitbox                   = true
 local toggle_display_sprite_id_above_sprite         = true
 local toggle_display_sprite_information             = true
 local toggle_display_sprite_information_after_death = false
 local toggle_display_time                           = true
 local toggle_display_rng                            = true
+local toggle_display_is_lagged                      = true
 local toggle_display_8_frame_timer                  = true
 local toggle_display_mario_position                 = true
 local toggle_display_mario_velocity                 = true
@@ -32,6 +34,7 @@ local toggle_display_level_on_overworld             = false
 local text_color               = "#009900ff"
 local text_faded_color         = "#003300ff"
 local text_back_color          = "black"
+local text_lag_color           = "red"
 local hitbox_edge_color        = "red"
 local hitbox_back_color        = nil --default
 local sprite_id_text_color     = "white"
@@ -166,7 +169,7 @@ function get_sprite_information()
     end
 end
 
-function display_hitboxes()
+function display_sprite_hitboxes()
     for i=1, sprite_slots, 1 do
         local sprite_x = (memory.readbyte(ram_high_x + i) * 0x100) + sprite[i][4] --get specific sprite x (without sub pixel)
         local sprite_y = (memory.readbyte(ram_high_y + i) * 0x100) + sprite[i][5] --get specific sprite y
@@ -174,10 +177,29 @@ function display_hitboxes()
         if (sprite[i][3] ~= 0) and --if alive
           ((sprite_x - 1 > screen[0]) and (sprite_x + 1 < screen[1]) and (sprite_y - 1 > screen[2]) and (sprite_y + 1 < screen[3])) then --check if within screen, I add or subtract one to be sure
             gui.drawrect(sprite[i][9][0] + sprite[i][1], sprite[i][9][1] + sprite[i][2], 
-                         sprite[i][9][2] + sprite[i][1], sprite[i][9][3] + sprite[i][2], hitbox_back_color, hitbox_edge_color) --draw the actual hitbox
+                         sprite[i][9][0] + sprite[i][9][2] + sprite[i][1], sprite[i][9][1] + sprite[i][9][3] + sprite[i][2], hitbox_back_color, hitbox_edge_color) --draw the actual hitbox
         end
     end
 end
+
+function display_mario_hitbox()
+    local mario_x = (memory.readbyte(ram_high_x) * 0x100) + memory.readbyte(ram_x)
+    local mario_y = (memory.readbyte(ram_high_y) * 0x100) + memory.readbyte(ram_y)
+    
+    if (mario_x - 1 > screen[0]) and (mario_x + 1 < screen[1]) and (mario_y - 1 > screen[2]) and (mario_y + 1 < screen[3]) then --if on screen
+        local hitbox_offset = 0
+        if (memory.readbyte(ram_mario_suit) > 0) and (memory.readbyte(ram_is_crouching) == 0) then
+            hitbox_offset = 4
+        end
+        
+        local mario_hitbox_x = (mario_x - screen[0]) + rom.readbyte(rom_mario_hitbox+hitbox_offset  )
+        local mario_hitbox_y = (mario_y - screen[2]) + rom.readbyte(rom_mario_hitbox+hitbox_offset+2)
+        
+        gui.drawrect(mario_hitbox_x, mario_hitbox_y,
+                     mario_hitbox_x + rom.readbyte(rom_mario_hitbox+hitbox_offset+1), mario_hitbox_y + rom.readbyte(rom_mario_hitbox+hitbox_offset+3), hitbox_back_color, hitbox_edge_color)
+    end
+end
+
 
 function display_sprite_id_above_sprite()
     if toggle_display_sprite_id_above_sprite then
@@ -250,7 +272,7 @@ function draw_level()
     
     local level_type = memory.readbyte(ram_stack) --no clue why it's in the stack
     
-    --horizontal level, vertical, or whatever 0xA0 means
+    --horizontal level, vertical, or whatever 0xA0 means ;)
     if (level_type == 0x80) or (level_type == 0xC0) or (level_type == 0xA0) then
         local level_width
         local level_height
@@ -355,6 +377,10 @@ function display_information()
         gui.drawtext(202, y_counter, string.format("8 Frame: %d", memory.readbyte(ram_8_frame_timer)), text_color, text_back_color)
     end
     
+    if toggle_display_is_lagged then
+        gui.drawtext(((screen_width * 16) - (5 * 3)) / 2, 17, (emu.lagged() and "LAG" or ""), text_lag_color, text_back_color)
+    end
+    
     y_counter = 96
     
     --display mario information
@@ -412,7 +438,7 @@ function display_information()
     y_counter = 169
     
     if toggle_display_rerecords then
-        if movie.active() then
+        if (movie.active() or taseditor.engaged()) then
             gui.drawtext(1, y_counter, string.format("%d", movie.rerecordcount()), text_color, text_back_color)
             y_counter = y_counter + 8
         end
@@ -424,7 +450,7 @@ function display_information()
     end
     
     if toggle_display_frames then
-        if not movie.active() then
+        if not (movie.active() or taseditor.engaged()) then
             gui.drawtext(1, y_counter, string.format("%d", emu.framecount()), text_color, text_back_color)
         else
             gui.drawtext(1, y_counter, string.format("%d/%d", emu.framecount(), movie.length()), text_color, text_back_color)
@@ -436,13 +462,17 @@ end
 
 --do postframe calculations
 function postframe_calculations()
-    if (toggle_display_hitboxes) or (toggle_display_sprite_information) or (toggle_display_sprites_in_level) or (toggle_display_sprite_id_above_sprite) then
+    if (toggle_display_sprite_hitboxes) or (toggle_display_sprite_information) or (toggle_display_sprites_in_level) or (toggle_display_sprite_id_above_sprite) then
         get_screen_information()
         get_sprite_information()
     end
     
-    if toggle_display_hitboxes then
-        display_hitboxes()
+    if toggle_display_sprite_hitboxes then
+        display_sprite_hitboxes()
+    end
+    
+    if toggle_display_mario_hitbox then
+        display_mario_hitbox()
     end
     
     if toggle_display_sprite_id_above_sprite then
