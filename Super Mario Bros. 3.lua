@@ -101,7 +101,7 @@ local pixel_boost_negative_total = 0 --total unexpected pixel change backward
 local hour_frames        = nes_framerate * 3600      --frames per hour
 local minute_frames      = nes_framerate * 60        --frames per minute
 local second_frames      = nes_framerate             --frames per second
-local centisecond_frames = nes_framerate * (1 / 100) --frames per hundredth of a second
+local centisecond_frames = nes_framerate / 100       --frames per hundredth of a second
 
 local sprite = {} --array storing sprite information
 local screen = {} --screen coordinates and size
@@ -252,10 +252,10 @@ function display_time()
     local centiseconds_frames = frames_left
     
     --turn frames into hours, minutes, seconds, and the remainder
-    local hours        = math.floor(hours_frames / hour_frames) --sorry for similar name, hour_frames is 1 hour into frames, hours_frames is above
-    local minutes      = math.floor(minutes_frames / minute_frames)
-    local seconds      = math.floor(seconds_frames / second_frames)
-    local centiseconds = math.floor(centiseconds_frames / centisecond_frames)
+    local hours        = math.floor((hours_frames        / hour_frames       ) + 0.0001) --sorry for similar name, hour_frames is 1 hour into frames, hours_frames is above
+    local minutes      = math.floor((minutes_frames      / minute_frames     ) + 0.0001) --I add 0.0001 because of annoying rounding errors floats love to make
+    local seconds      = math.floor((seconds_frames      / second_frames     ) + 0.0001)
+    local centiseconds = math.floor((centiseconds_frames / centisecond_frames) + 0.0001)
     
     gui.drawtext(198, 224, string.format("%02d:%02d:%02d.%02d", hours, minutes, seconds, centiseconds), text_color, text_back_color) --draw it
 end
@@ -305,7 +305,7 @@ function draw_level()
                                                                                                                                                     --more complicated due to how the level is stored in ram
                 end
                 local quadrant = math.floor(block / 0x40) --used for checking solidity
-                if (block >= tile_attributes[quadrant]) and (block < (quadrant+1) * 0x40) then --check soliditiy within quadran
+                if (block >= tile_attributes[quadrant]) and (block < (quadrant+1) * 0x40) then --check soliditiy within quadrant
                     if toggle_display_screen_in_level then
                         if ((x * 16 >= screen[0]) and (x * 16 <= screen[1])) and ((y * 16 >= screen[2]) and (y * 16 <= screen[3])) then
                             block_color = level_block_color
@@ -368,13 +368,13 @@ function display_information()
     --hopefully shouldn't need to comment on these, rather self explanitory
     local y_counter = 9
     if toggle_display_rng then
-        local rng = memory.readbyte(ram_rng)
-        gui.drawtext(211, y_counter, string.format("RNG: %03d", rng), text_color, text_back_color)
+        gui.drawtext(211, y_counter, string.format("RNG: %03d", memory.readbyte(ram_rng)), text_color, text_back_color)
         y_counter = y_counter + 8
     end
     
     if toggle_display_8_frame_timer then
         gui.drawtext(202, y_counter, string.format("8 Frame: %d", memory.readbyte(ram_8_frame_timer)), text_color, text_back_color)
+		y_counter = y_counter + 8
     end
     
     if toggle_display_is_lagged then
@@ -392,7 +392,7 @@ function display_information()
     if toggle_display_mario_position then
         local mario_sub_x = memory.readbyte(ram_low_x)
         local mario_sub_y = memory.readbyte(ram_low_y)
-        gui.drawtext(1, y_counter, string.format("Pos: (%d.%02X, %d.%02X)", memory.readbyte(ram_x), mario_sub_x, memory.readbytesigned(ram_y), mario_sub_y), text_color, text_back_color)
+        gui.drawtext(1, y_counter, string.format("Pos: (%d.%02X, %d.%02X)", memory.readbyte(ram_x), mario_sub_x, memory.readbyte(ram_y), mario_sub_y), text_color, text_back_color)
         y_counter = y_counter + 8
     end
     
