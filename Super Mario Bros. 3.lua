@@ -229,10 +229,19 @@ end
 
 --calculate if mario moved 1 pixel more than he should have
 function post_pixel_boost()
-    local x_expected = x_total() --expected x
-    local x_actual = x_prev + (x_speed_prev * 16) --actual x
-    local x_difference = x_expected - x_actual --difference
-    pixel_boost_total = pixel_boost_total + (x_difference == 0x100 and 1 or 0) --if the difference was exactly one, it was a pixel boost
+    local x_expected --expected x
+    local x_actual = x_total() --actual x
+    local x_difference --difference
+	
+	if x_speed_prev < 0x80 then
+		x_expected = x_prev + (x_speed_prev * 16)
+		x_difference = x_actual - x_expected
+	else
+		x_expected = x_prev - ((0x100 - x_speed_prev) * 16)
+		x_difference = x_expected - x_actual
+	end
+	
+    pixel_boost_total = pixel_boost_total + (x_difference == 0x100 and 1 or 0) --if the difference was 1 pixel, it was (probably) a pixel boost
     pixel_boost_negative_total = pixel_boost_negative_total + (x_difference == -0x100 and 1 or 0) --or a negative boost (wall pushing back, etc.)
     gui.drawtext(1, 9, "Pixel Boost Pos: " .. pixel_boost_total .. "; Neg: " .. pixel_boost_negative_total, text_color, text_back_color) --draw text
 end
@@ -305,7 +314,7 @@ function draw_level()
                                                                                                                                                     --more complicated due to how the level is stored in ram
                 end
                 local quadrant = math.floor(block / 0x40) --used for checking solidity
-                if (block >= tile_attributes[quadrant]) and (block < (quadrant+1) * 0x40) then --check soliditiy within quadrant
+                if (block >= tile_attributes[quadrant]) and (block < (quadrant+1) * 0x40) then --check solidity within quadrant
                     if toggle_display_screen_in_level then
                         if ((x * 16 >= screen[0]) and (x * 16 <= screen[1])) and ((y * 16 >= screen[2]) and (y * 16 <= screen[3])) then
                             block_color = level_block_color
